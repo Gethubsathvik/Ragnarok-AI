@@ -1,0 +1,47 @@
+# CODEOWNERS - Define code owners for automatic review requests
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners (review all changes)
+* @Gethubsathvik
+
+# Documentation
+.docs/ @Gethubsathvik
+
+# Core training pipeline
+/scripts/ @Gethubsathvik
+
+# Model architecture
+/scripts/02_build_model.py @Gethubsathvik
+
+# Training loop
+/scripts/03_train.py @Gethubsathvik
+
+# Data preparation
+/scripts/01_prepare_data.py @Gethubsathvik
+
+# Inference & Generation
+/scripts/04_generate.py @Gethubsathvik
+/scripts/05_gui.py @Gethubsathvik
+
+# Web Backend (FastAPI)
+/web/backend/ @Gethubsathvik
+
+# Web Frontend (React)
+/web/frontend/ @Gethubsathvik
+
+# Docker configuration
+Dockerfile* @Gethubsathvik
+docker-compose*.yml @Gethubsathvik
+.dockerignore @Gethubsathvik
+
+# GitHub Actions workflows
+/.github/workflows/ @Gethubsathvik
+
+# Configuration files
+requirements*.txt @Gethubsathvik
+configs/ @Gethubsathvik
+Makefile @Gethubsathvik
+
+# Dependencies
+package.json @Gethubsathvik
+package-lock.json @Gethubsathvik

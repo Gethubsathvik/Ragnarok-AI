@@ -1,0 +1,22 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "https://github.com/.*/issues/.*",
+      "reason": "GitHub issue links may require auth"
+    },
+    {
+      "pattern": "https://huggingface.co/.*",
+      "reason": "HuggingFace links may redirect"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "\\(#(.+)\\)",
+      "replacement": "(https://github.com/Gethubsathvik/Ragnarok-AI/blob/main/README.md#$1)"
+    }
+  ],
+  "aliveStatusCodes": [200, 206],
+  "retryCount": 3,
+  "retryDelay": 1000,
+  "timeout": 10000
+}

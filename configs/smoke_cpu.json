@@ -1,0 +1,2 @@
+{"max_steps": 20, "batch_size": 2, "grad_accum": 1, "block_size": 64, "warmup": 5, "eval_interval": 10,
+ "eval_batches": 2, "save_interval": 10, "workers": 0, "no_grad_ckpt": true, "patience": 0}

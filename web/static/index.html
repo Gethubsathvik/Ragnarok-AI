@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mini-GPT Playground</title>
+<style>
+  :root { --bg:#020617; --panel:#0f172a; --line:#1e293b; --text:#e2e8f0; --mute:#94a3b8; --accent:#818cf8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif; }
+  .wrap { max-width:1150px; margin:0 auto; padding:16px; display:flex; gap:16px; flex-wrap:wrap; }
+  aside { width:300px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  main { flex:1; min-width:320px; display:flex; flex-direction:column; gap:10px; }
+  h1 { font-size:18px; margin:0 0 2px; } h2 { font-size:13px; color:var(--mute); margin:16px 0 6px; }
+  .sub { color:var(--mute); font-size:12px; }
+  select, input, textarea, button { font:inherit; color:var(--text); background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px; }
+  select, textarea { width:100%; } textarea { background:var(--panel); border-color:var(--line); font-family:Consolas,monospace; resize:vertical; }
+  button { cursor:pointer; } button:hover:not(:disabled) { background:#334155; } button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:#6366f1; border-color:#6366f1; font-weight:600; } button.primary:hover:not(:disabled){ background:#818cf8; }
+  .row { display:flex; gap:8px; align-items:center; } .grow { flex:1; }
+  .sl { margin:10px 0; } .sl .top { display:flex; justify-content:space-between; } .sl b { font-weight:500; } .sl span { color:var(--accent); font-variant-numeric:tabular-nums; }
+  .sl input[type=range] { width:100%; padding:0; accent-color:var(--accent); } .hint { color:#64748b; font-size:12px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; } .chips button { border-radius:999px; padding:2px 10px; font-size:12px; }
+  #status { background:#1e293b; border-radius:8px; padding:8px; font-size:12px; color:var(--mute); margin-top:8px; }
+  #out { flex:1; min-height:300px; max-height:70vh; overflow-y:auto; white-space:pre-wrap; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; font:13px/1.6 Consolas,monospace; }
+  #out .p { color:#38bdf8; font-weight:700; } #err { display:none; background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5; border-radius:8px; padding:8px; }
+  .cursor { display:inline-block; width:8px; height:15px; background:var(--accent); vertical-align:middle; animation:blink 1s infinite; } @keyframes blink { 50% { opacity:0 } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <h1>Mini-GPT Playground</h1><div class="sub">Lite page · no build step · streaming over SSE</div>
+    <h2>Model</h2>
+    <select id="ckpt"></select>
+    <div class="row" style="margin-top:8px"><button id="load" class="grow">Load model</button></div>
+    <div id="status">Connecting…</div>
+    <h2>Sampling</h2>
+    <div class="chips" id="presets"></div>
+    <div id="sliders"></div>
+    <div class="row" style="justify-content:space-between"><b style="font-weight:500">Seed</b><input id="seed" placeholder="random" style="width:110px;text-align:right" /></div>
+  </aside>
+  <main>
+    <textarea id="prompt" rows="4" placeholder="Type a prompt… (Ctrl+Enter to generate)">The history of the Roman Empire</textarea>
+    <div class="row">
+      <button id="gen" class="primary" disabled>Generate</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="clear">Clear</button>
+      <span id="stats" class="sub" style="margin-left:auto"></span>
+    </div>
+    <div id="err" role="alert"></div>
+    <div id="out"><span class="hint">Output streams here token by token.</span></div>
+  </main>
+</div>
+
+<script>
+const SLIDERS = [
+  ["temperature", "Temperature", 0, 2, 0.05, 0.8, "0 = greedy, higher = more random"],
+  ["top_k", "Top-k", 0, 200, 1, 50, "0 = off"],
+  ["top_p", "Top-p", 0.05, 1, 0.01, 0.95, "nucleus sampling, 1 = off"],
+  ["repetition_penalty", "Repetition penalty", 1, 2, 0.05, 1.1, "1 = none"],
+  ["max_new_tokens", "Max new tokens", 1, 1024, 1, 200, ""],
+];
+const PRESETS = {
+  Focused: { temperature: 0.4, top_k: 20, top_p: 0.8 }, Balanced: { temperature: 0.8, top_k: 50, top_p: 0.95 },
+  Creative: { temperature: 1.1, top_k: 100, top_p: 0.98 }, Greedy: { temperature: 0, top_k: 0, top_p: 1 },
+};
+const $ = (id) => document.getElementById(id);
+const params = {};
+let loaded = false, running = false, ctrl = null;
+
+// ---- sliders / presets ----
+for (const [key, label, min, max, step, def, hint] of SLIDERS) {
+  params[key] = def;
+  const d = document.createElement("div"); d.className = "sl";
+  d.innerHTML = `<div class="top"><b>${label}</b><span id="v_${key}">${def}</span></div>
+    <input type="range" id="s_${key}" min="${min}" max="${max}" step="${step}" value="${def}"><div class="hint">${hint}</div>`;
+  $("sliders").appendChild(d);
+  d.querySelector("input").addEventListener("input", (e) => setParam(key, Number(e.target.value)));
+}
+function setParam(k, v) { params[k] = v; $("v_" + k).textContent = v; $("s_" + k).value = v; }
+for (const [name, p] of Object.entries(PRESETS)) {
+  const b = document.createElement("button"); b.textContent = name;
+  b.onclick = () => Object.entries(p).forEach(([k, v]) => setParam(k, v));
+  $("presets").appendChild(b);
+}
+
+// ---- helpers ----
+function showError(msg) { const e = $("err"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let m = "HTTP " + r.status; try { const j = await r.json(); m = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch {} throw new Error(m); }
+  return r.json();
+}
+function setRunning(v) { running = v; $("gen").disabled = v || !loaded; $("stop").disabled = !v; $("load").disabled = v; }
+
+async function refresh() {
+  try {
+    const [s, c] = await Promise.all([api("/api/status"), api("/api/checkpoints")]);
+    const sel = $("ckpt"), cur = sel.value;
+    sel.innerHTML = c.checkpoints.length ? c.checkpoints.map((n) => `<option>${n}</option>`).join("") : "<option value=''>No checkpoints in models/</option>";
+    sel.value = cur || s.checkpoint || c.checkpoints[0] || "";
+    loaded = s.loaded; setRunning(running);
+    $("status").textContent = s.loaded
+      ? `● loaded: ${s.checkpoint} · step ${s.step} · ${s.params_millions}M params on ${s.device}${s.gpu_name ? " (" + s.gpu_name + ")" : ""}`
+      : "● no model loaded" + (s.cuda_available ? "" : " · CUDA not detected by the server");
+    showError("");
+  } catch { showError("Cannot reach the backend. Start it with: python web/backend/app.py"); }
+}
+
+$("load").onclick = async () => {
+  $("load").disabled = true; $("status").textContent = "Loading…";
+  try { await api("/api/load", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("ckpt").value }) }); showError(""); }
+  catch (e) { showError(e.message); }
+  $("load").disabled = false; refresh();
+};
+
+// ---- SSE parser (same logic as the React app's sse.js) ----
+function sseParser(onEvent) {
+  let buf = "";
+  return (chunk) => {
+    buf += chunk.replace(/\r\n/g, "\n"); let i;
+    while ((i = buf.indexOf("\n\n")) !== -1) {
+      const block = buf.slice(0, i); buf = buf.slice(i + 2);
+      let ev = "message"; const data = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) ev = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+      }
+      if (data.length) onEvent(ev, JSON.parse(data.join("\n")));
+    }
+  };
+}
+
+async function generate() {
+  if (running || !loaded) return;
+  const prompt = $("prompt").value, seed = $("seed").value.trim();
+  ctrl = new AbortController(); setRunning(true); showError(""); $("stats").textContent = "";
+  const out = $("out"); out.innerHTML = "";
+  const p = document.createElement("span"); p.className = "p"; p.textContent = prompt;
+  const g = document.createElement("span"); const cur = document.createElement("span"); cur.className = "cursor";
+  out.append(p, g, cur);
+  let finished = false;
+  try {
+    const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
+      body: JSON.stringify({ prompt, ...params, seed: /^\d+$/.test(seed) ? Number(seed) : null }) });
+    if (!res.ok) { let m = "HTTP " + res.status; try { const j = await res.json(); m = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch {} throw new Error(m); }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    const feed = sseParser((ev, d) => {
+      if (ev === "token") { g.textContent += d.text; out.scrollTop = out.scrollHeight; }
+      else if (ev === "done") { finished = true; $("stats").textContent = `${d.tokens} tokens in ${d.seconds}s · ${d.tokens_per_second} tok/s${d.stopped ? " · stopped" : ""}`; }
+      else if (ev === "error") { finished = true; showError(d.message); }
+    });
+    for (;;) { const { value, done } = await reader.read(); if (done) break; feed(dec.decode(value, { stream: true })); }
+    if (!finished) $("stats").textContent = "Stream ended unexpectedly.";
+  } catch (e) { if (e.name === "AbortError") $("stats").textContent = "Stopped."; else showError(e.message); }
+  cur.remove(); setRunning(false); ctrl = null; refresh();
+}
+$("gen").onclick = generate;
+$("stop").onclick = () => ctrl && ctrl.abort();
+$("clear").onclick = () => { $("out").innerHTML = ""; $("stats").textContent = ""; };
+$("prompt").addEventListener("keydown", (e) => { if (e.ctrlKey && e.key === "Enter") generate(); });
+refresh();
+</script>
+</body>
+</html>

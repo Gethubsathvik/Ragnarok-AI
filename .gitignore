@@ -1,0 +1,132 @@
+# Python
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Node.js / Frontend
+node_modules/
+web/frontend/dist/
+web/frontend/.vite/
+web/frontend/coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Data & Models (Large files - use Git LFS if needed)
+data/*.bin
+data/tokenizer/
+data/meta.json
+models/*.pt
+models/*.safetensors
+*.bin
+*.safetensors
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+wandb/
+
+# TensorBoard
+logs/tensorboard/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# Test artifacts
+.coverage
+htmlcov/
+.tox/
+.nyc_output/
+coverage/
+*.lcov
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Profiling
+*.prof
+*.pstats
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# Bandit
+bandit-report.json
+
+# pip-audit
+pip-audit-report.json
+
+# Safety
+safety-report.json
+
+# Trivy
+trivy-results.sarif
+
+# Benchmark
+benchmark-results.json
+
+# Release
+*.tar.gz
+*.whl
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini

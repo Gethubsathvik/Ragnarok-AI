@@ -1,0 +1,264 @@
+name: 🚢 CD - Continuous Deployment
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.3.0)'
+        required: true
+        type: string
+      push_latest:
+        description: 'Also push as latest tag'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ========================================================================
+  # BUILD & PUSH DOCKER IMAGES
+  # ========================================================================
+  build-and-push:
+    name: 🐳 Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - dockerfile: Dockerfile
+            target: train
+            context: .
+            image-suffix: train
+          - dockerfile: Dockerfile.api
+            target: api
+            context: .
+            image-suffix: api
+          - dockerfile: web/frontend/Dockerfile
+            target: production
+            context: web/frontend
+            image-suffix: frontend
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Extract version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📝 Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image-suffix }}
+          tags: |
+            type=ref,event=tag
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=true
+
+      - name: 🏗️ Build and push ${{ matrix.image-suffix }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+          platforms: linux/amd64
+
+      - name: 📋 Output image digest
+        run: |
+          echo "${{ matrix.image-suffix }} image: ${{ steps.meta.outputs.tags }}"
+
+  # ========================================================================
+  # CREATE GITHUB RELEASE
+  # ========================================================================
+  create-release:
+    name: 📦 Create Release
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: write
+      packages: read
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔧 Extract version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%an)" $PREV_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%an)" -20)
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 📦 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Ragnarok AI ${{ steps.version.outputs.version }}
+          body: |
+            ## 🤖 Ragnarok AI ${{ steps.version.outputs.version }}
+            
+            ### 🐳 Docker Images
+            ```bash
+            # Training image
+            docker pull ghcr.io/${{ github.repository }}/train:${{ steps.version.outputs.version }}
+            
+            # API image
+            docker pull ghcr.io/${{ github.repository }}/api:${{ steps.version.outputs.version }}
+            
+            # Frontend image
+            docker pull ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.version }}
+            ```
+            
+            ### 📦 Quick Start
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd Ragnarok-AI
+            
+            # Windows
+            setup_env.bat
+            
+            # Linux/macOS
+            bash setup_env.sh
+            
+            # Train
+            python scripts/03_train.py
+            
+            # Or with Docker
+            docker compose up --build api
+            ```
+            
+            ### 📋 Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### 📚 Documentation
+            - [Architecture](.docs/ARCHITECTURE.md)
+            - [Design System](.docs/DESIGN.md)
+            - [Development Rules](.docs/RULES.md)
+            - [Task Tracker](.docs/TASKS.md)
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: false
+
+  # ========================================================================
+  # DEPLOY TO STAGING (on develop branch)
+  # ========================================================================
+  deploy-staging:
+    name: 🚀 Deploy Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment logic here
+          # Example: kubectl apply -f k8s/staging/
+          # Or: docker compose -f docker-compose.staging.yml up -d
+
+  # ========================================================================
+  # DEPLOY TO PRODUCTION (on main branch after release)
+  # ========================================================================
+  deploy-production:
+    name: 🌟 Deploy Production
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: production
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment logic here
+          # Example: kubectl apply -f k8s/production/
+          # Or: docker compose -f docker-compose.prod.yml up -d
+
+  # ========================================================================
+  # NOTIFICATION
+  # ========================================================================
+  notify:
+    name: 🔔 Notify
+    runs-on: ubuntu-latest
+    needs: [create-release, deploy-staging, deploy-production]
+    if: always()
+    steps:
+      - name: 📊 Check deployment status
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check each job
+          for job in "create-release" "deploy-staging" "deploy-production"; do
+            result="${{ needs.$job.result }}"
+            if [ "$result" = "success" ]; then
+              echo "✅ $job: **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+            elif [ "$result" = "failure" ]; then
+              echo "❌ $job: **FAILED**" >> $GITHUB_STEP_SUMMARY
+            elif [ "$result" = "skipped" ]; then
+              echo "⏭️ $job: **SKIPPED**" >> $GITHUB_STEP_SUMMARY
+            fi
+          done

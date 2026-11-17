@@ -1,0 +1,45 @@
+# Needs Docker + NVIDIA Container Toolkit.
+#   docker compose up --build api                 # web UI + API on http://localhost:8000
+#   docker compose run --rm prepare               # download + tokenize data  -> ./data
+#   docker compose run --rm train                 # train                     -> ./models, ./logs
+#   docker compose up tensorboard                 # http://localhost:6006
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+x-volumes: &volumes
+  volumes:
+    - ./data:/app/data
+    - ./models:/app/models
+    - ./logs:/app/logs
+
+services:
+  api:
+    build: .
+    <<: [*gpu, *volumes]
+    ports: ["127.0.0.1:8000:8000"]   # local only; do not expose this API publicly without auth
+    restart: unless-stopped
+
+  prepare:
+    build: .
+    <<: *volumes
+    profiles: ["tools"]
+    command: python scripts/01_prepare_data.py
+
+  train:
+    build: .
+    <<: [*gpu, *volumes]
+    profiles: ["tools"]
+    shm_size: "2gb"                  # DataLoader workers
+    command: python scripts/03_train.py --config configs/gpt124m.json
+
+  tensorboard:
+    build: .
+    <<: *volumes
+    profiles: ["tools"]
+    ports: ["127.0.0.1:6006:6006"]
+    command: tensorboard --logdir logs/tensorboard --host 0.0.0.0 --port 6006

@@ -1,0 +1,208 @@
+name: 📅 Scheduled Tasks
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Weekly Sunday 3 AM UTC
+  workflow_dispatch:
+
+jobs:
+  # ========================================================================
+  # DEPENDENCY UPDATES
+  # ========================================================================
+  dependency-updates:
+    name: 📦 Dependency Updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install pip-tools
+        run: pip install pip-tools
+
+      - name: 🔍 Check for Python updates
+        id: python-updates
+        run: |
+          pip install -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
+          pip list --outdated --format=json > outdated.json
+          echo "outdated<<EOF" >> $GITHUB_OUTPUT
+          cat outdated.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Check for Node updates
+        id: node-updates
+        working-directory: web/frontend
+        run: |
+          npm outdated --json > outdated.json 2>/dev/null || echo "[]" > outdated.json
+          echo "outdated<<EOF" >> $GITHUB_OUTPUT
+          cat outdated.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 🤖 Create dependency update PR
+        if: steps.python-updates.outputs.outdated != '[]' || steps.node-updates.outputs.outdated != '[]'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(deps): weekly dependency updates'
+          title: '📦 Weekly Dependency Updates'
+          body: |
+            Automated weekly dependency update check.
+            
+            ### Python Updates
+            ${{ steps.python-updates.outputs.outdated }}
+            
+            ### Node.js Updates
+            ${{ steps.node-updates.outputs.outdated }}
+            
+            Please review and merge if tests pass.
+          labels: dependencies, automated
+          branch: chore/weekly-deps-update
+
+  # ========================================================================
+  # SECURITY AUDIT
+  # ========================================================================
+  security-audit:
+    name: 🔒 Weekly Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🔍 Run comprehensive security scan
+        run: |
+          pip install pip-audit safety bandit
+          
+          # Python security audit
+          pip-audit -r requirements.txt -r requirements-web.txt -r requirements-dev.txt --format=json --output=security-audit.json || true
+          safety check -r requirements.txt -r requirements-web.txt -r requirements-dev.txt --json --output=safety-report.json || true
+          bandit -r scripts/ web/backend/ -f json -o bandit-report.json || true
+          
+          # Check for critical/high vulnerabilities
+          CRITICAL=$(jq '[.vulnerabilities[] | select(.severity=="critical")] | length' security-audit.json 2>/dev/null || echo 0)
+          HIGH=$(jq '[.vulnerabilities[] | select(.severity=="high")] | length' security-audit.json 2>/dev/null || echo 0)
+          
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "::error::Found $CRITICAL critical and $HIGH high severity vulnerabilities"
+            exit 1
+          fi
+
+      - name: 📋 Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            security-audit.json
+            safety-report.json
+            bandit-report.json
+          retention-days: 90
+
+  # ========================================================================
+  # PERFORMANCE BENCHMARK
+  # ========================================================================
+  benchmark:
+    name: ⚡ Performance Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.repository == 'Gethubsathvik/Ragnarok-AI'  # Only run on main repo
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: ⚡ Run inference benchmark
+        run: |
+          python -c "
+          import torch
+          import time
+          from scripts.02_build_model import GPT, GPTConfig
+          
+          config = GPTConfig()
+          model = GPT(config)
+          model.eval()
+          
+          # Warmup
+          x = torch.randint(0, config.vocab_size, (1, 128))
+          with torch.no_grad():
+              for _ in range(5):
+                  _ = model(x)
+          
+          # Benchmark
+          iterations = 100
+          start = time.time()
+          with torch.no_grad():
+              for _ in range(iterations):
+                  _ = model(x)
+          end = time.time()
+          
+          total_time = end - start
+          tokens_per_sec = (iterations * 128) / total_time
+          
+          print(f'Benchmark Results:')
+          print(f'  Iterations: {iterations}')
+          print(f'  Sequence length: 128')
+          print(f'  Total time: {total_time:.2f}s')
+          print(f'  Tokens/sec: {tokens_per_sec:.0f}')
+          print(f'  Latency/token: {(total_time/iterations/128)*1000:.2f}ms')
+          
+          # Save for comparison
+          import json
+          with open('benchmark-results.json', 'w') as f:
+              json.dump({
+                  'tokens_per_sec': tokens_per_sec,
+                  'latency_ms': (total_time/iterations/128)*1000,
+                  'timestamp': time.time()
+              }, f)
+          "
+
+      - name: 📊 Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+          retention-days: 90
+
+      - name: 📈 Compare with previous
+        run: |
+          # Could compare with previous benchmark artifact
+          echo "Benchmark completed. Results uploaded."
+
+  # ========================================================================
+  # CLEANUP OLD ARTIFACTS
+  # ========================================================================
+  cleanup:
+    name: 🧹 Cleanup Old Artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 🧹 Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 30
+          keep_minimum_runs: 10

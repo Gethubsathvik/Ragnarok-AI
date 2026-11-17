@@ -1,0 +1,2 @@
+{"epochs": 2, "batch_size": 16, "grad_accum": 2, "block_size": 512, "lr": 0.0003, "min_lr": 0.00003,
+ "warmup": 300, "eval_interval": 250, "save_interval": 500}
