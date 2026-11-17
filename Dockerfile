@@ -3,7 +3,7 @@
 ARG PYTORCH_IMAGE=pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
 # Stage 1: build the React UI
-FROM node:22-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /web
 COPY web/frontend/package.json ./
 RUN npm install --no-audit --no-fund
