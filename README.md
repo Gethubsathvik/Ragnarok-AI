@@ -442,6 +442,14 @@ make test
 
 ---
 
+## 🖼️ Demo
+
+![Ragnarok AI Demo](assets/ragnarok-demo.jpeg)
+
+*Desktop GUI with real-time token streaming*
+
+---
+
 ## ⚠️ Notes & Limitations
 
 - 📝 **Output quality**: Wikipedia-style fluent text, often factually incorrect (124M params, ~100M tokens = learning scale)
