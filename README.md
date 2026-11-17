@@ -16,13 +16,13 @@
 
 ---
 
-
-
 ---
 
 ## 🖼️ Demo
 
-![Ragnarok AI Demo](assets/ragnarok-demo.jpeg)
+<p align="center">
+  <img src="assets/ragnarok-demo.jpeg" alt="Ragnarok AI Demo" width="90%">
+</p>
 
 *Desktop GUI with real-time token streaming*
 
