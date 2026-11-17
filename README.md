@@ -16,6 +16,18 @@
 
 ---
 
+
+
+---
+
+## 🖼️ Demo
+
+![Ragnarok AI Demo](assets/ragnarok-demo.jpeg)
+
+*Desktop GUI with real-time token streaming*
+
+
+
 ## 📁 Project Structure
 
 ```
@@ -439,14 +451,6 @@ cd web/frontend && npm test
 # All tests (CI)
 make test
 ```
-
----
-
-## 🖼️ Demo
-
-![Ragnarok AI Demo](assets/ragnarok-demo.jpeg)
-
-*Desktop GUI with real-time token streaming*
 
 ---
 
