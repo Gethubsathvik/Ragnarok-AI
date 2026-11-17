@@ -1,4 +1,4 @@
-name: 🚢 CD - Continuous Deployment
+name: CD - Continuous Deployment
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
   # BUILD & PUSH DOCKER IMAGES
   # ========================================================================
   build-and-push:
-    name: 🐳 Build & Push Images
+    name: Build & Push Images
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,10 +48,10 @@ jobs:
             context: web/frontend
             image-suffix: frontend
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Extract version
+      - name: Extract version
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -62,17 +62,17 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=${VERSION#v}" >> $GITHUB_OUTPUT
 
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🔐 Log in to Container Registry
+      - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📝 Extract metadata
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -85,7 +85,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.tag }},enable=true
 
-      - name: 🏗️ Build and push ${{ matrix.image-suffix }}
+      - name: Build and push ${{ matrix.image-suffix }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
@@ -100,7 +100,7 @@ jobs:
           sbom: true
           platforms: linux/amd64
 
-      - name: 📋 Output image digest
+      - name: Output image digest
         run: |
           echo "${{ matrix.image-suffix }} image: ${{ steps.meta.outputs.tags }}"
 
@@ -108,7 +108,7 @@ jobs:
   # CREATE GITHUB RELEASE
   # ========================================================================
   create-release:
-    name: 📦 Create Release
+    name: Create Release
     runs-on: ubuntu-latest
     needs: build-and-push
     permissions:
@@ -116,12 +116,12 @@ jobs:
       packages: read
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🔧 Extract version
+      - name: Extract version
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -131,7 +131,7 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: 📝 Generate changelog
+      - name: Generate changelog
         id: changelog
         run: |
           # Get previous tag
@@ -147,15 +147,15 @@ jobs:
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: 📦 Create GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Ragnarok AI ${{ steps.version.outputs.version }}
           body: |
-            ## 🤖 Ragnarok AI ${{ steps.version.outputs.version }}
+            ## Ragnarok AI ${{ steps.version.outputs.version }}
             
-            ### 🐳 Docker Images
+            ### Docker Images
             ```bash
             # Training image
             docker pull ghcr.io/${{ github.repository }}/train:${{ steps.version.outputs.version }}
@@ -167,7 +167,7 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}/frontend:${{ steps.version.outputs.version }}
             ```
             
-            ### 📦 Quick Start
+            ### Quick Start
             ```bash
             git clone https://github.com/${{ github.repository }}.git
             cd Ragnarok-AI
@@ -185,10 +185,10 @@ jobs:
             docker compose up --build api
             ```
             
-            ### 📋 Changes
+            ### Changes
             ${{ steps.changelog.outputs.changelog }}
             
-            ### 📚 Documentation
+            ### Documentation
             - [Architecture](.docs/ARCHITECTURE.md)
             - [Design System](.docs/DESIGN.md)
             - [Development Rules](.docs/RULES.md)
@@ -201,16 +201,16 @@ jobs:
   # DEPLOY TO STAGING (on develop branch)
   # ========================================================================
   deploy-staging:
-    name: 🚀 Deploy Staging
+    name: Deploy Staging
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/develop'
     environment: staging
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Deploy to staging
+      - name: Deploy to staging
         run: |
           echo "Deploying to staging environment..."
           # Add your staging deployment logic here
@@ -221,16 +221,16 @@ jobs:
   # DEPLOY TO PRODUCTION (on main branch after release)
   # ========================================================================
   deploy-production:
-    name: 🌟 Deploy Production
+    name: Deploy Production
     runs-on: ubuntu-latest
     needs: create-release
     if: github.event_name == 'release' && github.event.action == 'published'
     environment: production
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Deploy to production
+      - name: Deploy to production
         run: |
           echo "Deploying to production environment..."
           # Add your production deployment logic here
@@ -241,12 +241,12 @@ jobs:
   # NOTIFICATION
   # ========================================================================
   notify:
-    name: 🔔 Notify
+    name: Notify
     runs-on: ubuntu-latest
     needs: [create-release, deploy-staging, deploy-production]
     if: always()
     steps:
-      - name: 📊 Check deployment status
+      - name: Check deployment status
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -255,10 +255,10 @@ jobs:
           for job in "create-release" "deploy-staging" "deploy-production"; do
             result="${{ needs.$job.result }}"
             if [ "$result" = "success" ]; then
-              echo "✅ $job: **SUCCESS**" >> $GITHUB_STEP_SUMMARY
+              echo "PASS $job: SUCCESS" >> $GITHUB_STEP_SUMMARY
             elif [ "$result" = "failure" ]; then
-              echo "❌ $job: **FAILED**" >> $GITHUB_STEP_SUMMARY
+              echo "FAIL $job: FAILED" >> $GITHUB_STEP_SUMMARY
             elif [ "$result" = "skipped" ]; then
-              echo "⏭️ $job: **SKIPPED**" >> $GITHUB_STEP_SUMMARY
+              echo "SKIP $job: SKIPPED" >> $GITHUB_STEP_SUMMARY
             fi
           done

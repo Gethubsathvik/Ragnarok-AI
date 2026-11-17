@@ -1,4 +1,4 @@
-name: 🚀 CI - Continuous Integration
+name: CI - Continuous Integration
 
 on:
   push:
@@ -24,16 +24,16 @@ jobs:
   # CODE QUALITY & STATIC ANALYSIS
   # ========================================================================
   code-quality:
-    name: 🔍 Code Quality
+    name: Code Quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🐍 Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -43,27 +43,27 @@ jobs:
             requirements-web.txt
             requirements-dev.txt
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-      - name: 🎨 Run Ruff (lint + format)
+      - name: Run Ruff (lint + format)
         run: |
           ruff check scripts/ web/backend/ --output-format=github
           ruff format --check scripts/ web/backend/
 
-      - name: 🔬 Run MyPy (type checking)
+      - name: Run MyPy (type checking)
         run: |
           mypy scripts/ web/backend/ --strict --ignore-missing-imports --show-error-codes
 
-      - name: 🔒 Run Bandit (security)
+      - name: Run Bandit (security)
         run: |
           bandit -r scripts/ web/backend/ -f json -o bandit-report.json || true
           bandit -r scripts/ web/backend/ -ll
 
-      - name: 📋 Upload security report
+      - name: Upload security report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -75,7 +75,7 @@ jobs:
   # PYTHON TESTS (UNIT + INTEGRATION)
   # ========================================================================
   python-tests:
-    name: 🧪 Python Tests
+    name: Python Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -89,10 +89,10 @@ jobs:
             pytorch-variant: 'cu124'
             label: 'CUDA 12.4'
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Python ${{ matrix.python-version }}
+      - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -101,7 +101,7 @@ jobs:
             requirements.txt
             requirements-web.txt
 
-      - name: 📦 Install PyTorch (${{ matrix.pytorch-variant }})
+      - name: Install PyTorch (${{ matrix.pytorch-variant }})
         run: |
           if [ "${{ matrix.pytorch-variant }}" = "cu124" ]; then
             pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
@@ -109,13 +109,13 @@ jobs:
             pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           fi
 
-      - name: 📦 Install project dependencies
+      - name: Install project dependencies
         run: |
           pip install -r requirements.txt
           pip install -r requirements-web.txt
           pip install pytest pytest-cov pytest-xdist pytest-timeout
 
-      - name: 🧪 Run Python tests
+      - name: Run Python tests
         run: |
           python -m pytest \
             --cov=scripts \
@@ -128,7 +128,7 @@ jobs:
             -x \
             tests/ web/backend/tests/
 
-      - name: 📊 Upload coverage
+      - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
@@ -139,39 +139,39 @@ jobs:
   # FRONTEND TESTS & BUILD
   # ========================================================================
   frontend:
-    name: 🌐 Frontend (React + Vite)
+    name: Frontend (React + Vite)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: web/frontend/package-lock.json
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         working-directory: web/frontend
         run: npm ci --no-audit --no-fund
 
-      - name: 🔍 Run ESLint
+      - name: Run ESLint
         working-directory: web/frontend
         run: npm run lint
 
-      - name: 🧪 Run tests
+      - name: Run tests
         working-directory: web/frontend
         run: npm test -- --run --reporter=verbose
 
-      - name: 🏗️ Build production
+      - name: Build production
         working-directory: web/frontend
         run: npm run build
         env:
           VITE_API_URL: http://localhost:8000
 
-      - name: 📦 Upload build artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
@@ -182,30 +182,30 @@ jobs:
   # MODEL VALIDATION TESTS
   # ========================================================================
   model-validation:
-    name: 🤖 Model Validation
+    name: Model Validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
 
-      - name: 🏗️ Build model
+      - name: Build model
         run: |
           python scripts/02_build_model.py
         timeout-minutes: 5
 
-      - name: 🔍 Verify model architecture
+      - name: Verify model architecture
         run: |
           python -c "
           import torch
@@ -238,7 +238,7 @@ jobs:
           print('KV-cache test passed')
           "
 
-      - name: ⚡ Quick training step test
+      - name: Quick training step test
         run: |
           python -c "
           import torch
@@ -262,18 +262,18 @@ jobs:
   # DOCKER BUILD TEST
   # ========================================================================
   docker-build:
-    name: 🐳 Docker Build Test
+    name: Docker Build Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [code-quality, python-tests, frontend]
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🏗️ Build training image
+      - name: Build training image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -284,7 +284,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: 🏗️ Build API image
+      - name: Build API image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -294,14 +294,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: 🧪 Test API image
+      - name: Test API image
         run: |
           docker run --rm -d --name test-api -p 8000:8000 ragnarok-ai/api:test
           sleep 10
           curl -f http://localhost:8000/api/health
           docker stop test-api
 
-      - name: 🧪 Test Docker Compose
+      - name: Test Docker Compose
         run: |
           docker compose config -q
           echo "Docker Compose configuration is valid"
@@ -310,25 +310,25 @@ jobs:
   # DEPENDENCY SECURITY SCAN
   # ========================================================================
   security-scan:
-    name: 🔒 Security Scan
+    name: Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 🔍 Run pip-audit
+      - name: Run pip-audit
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt -r requirements-web.txt -r requirements-dev.txt --format=json --output=pip-audit-report.json || true
           pip-audit -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
 
-      - name: 📋 Upload pip-audit report
+      - name: Upload pip-audit report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -336,11 +336,11 @@ jobs:
           path: pip-audit-report.json
           retention-days: 30
 
-      - name: 🔍 Run npm audit
+      - name: Run npm audit
         working-directory: web/frontend
         run: npm audit --audit-level=high || true
 
-      - name: 🐳 Trivy container scan
+      - name: Trivy container scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -348,7 +348,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
 
-      - name: 📋 Upload Trivy results
+      - name: Upload Trivy results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -358,14 +358,14 @@ jobs:
   # DOCUMENTATION CHECK
   # ========================================================================
   docs-check:
-    name: 📚 Documentation Check
+    name: Documentation Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: ✅ Check required docs exist
+      - name: Check required docs exist
         run: |
           required_files=(
             "README.md"
@@ -379,13 +379,13 @@ jobs:
           
           for file in "${required_files[@]}"; do
             if [ ! -f "$file" ]; then
-              echo "❌ Missing required file: $file"
+              echo "Missing required file: $file"
               exit 1
             fi
-            echo "✅ Found: $file"
+            echo "Found: $file"
           done
 
-      - name: 🔗 Check internal links
+      - name: Check internal links
         run: |
           pip install markdown-link-check
           markdown-link-check README.md --config .markdown-link-check.json || true
@@ -394,7 +394,7 @@ jobs:
   # SUMMARY & STATUS
   # ========================================================================
   ci-summary:
-    name: ✅ CI Summary
+    name: CI Summary
     runs-on: ubuntu-latest
     needs: 
       - code-quality
@@ -407,7 +407,7 @@ jobs:
     if: always()
     timeout-minutes: 5
     steps:
-      - name: 📊 Check job statuses
+      - name: Check job statuses
         run: |
           echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -418,22 +418,22 @@ jobs:
           for job in "${jobs[@]}"; do
             result="${{ needs.$job.result }}"
             if [ "$result" = "success" ]; then
-              echo "✅ $job: **PASSED**" >> $GITHUB_STEP_SUMMARY
+              echo "PASS $job: PASSED" >> $GITHUB_STEP_SUMMARY
             elif [ "$result" = "failure" ]; then
-              echo "❌ $job: **FAILED**" >> $GITHUB_STEP_SUMMARY
+              echo "FAIL $job: FAILED" >> $GITHUB_STEP_SUMMARY
               all_passed=false
             elif [ "$result" = "cancelled" ]; then
-              echo "⚠️ $job: **CANCELLED**" >> $GITHUB_STEP_SUMMARY
+              echo "SKIP $job: CANCELLED" >> $GITHUB_STEP_SUMMARY
             else
-              echo "⏭️ $job: **SKIPPED**" >> $GITHUB_STEP_SUMMARY
+              echo "SKIP $job: SKIPPED" >> $GITHUB_STEP_SUMMARY
             fi
           done
           
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "$all_passed" = "true" ]; then
-            echo "🎉 **All checks passed!**" >> $GITHUB_STEP_SUMMARY
+            echo "All checks passed!" >> $GITHUB_STEP_SUMMARY
             exit 0
           else
-            echo "💥 **Some checks failed!**" >> $GITHUB_STEP_SUMMARY
+            echo "Some checks failed!" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
