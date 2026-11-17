@@ -20,9 +20,7 @@
 
 ## 🖼️ Demo
 
-<p align="center">
-  <img src="assets/ragnarok-demo.jpeg" alt="Ragnarok AI Demo" width="90%">
-</p>
+https://github.com/Gethubsathvik/Ragnarok-AI/blob/a812248337df630f53313d50bdd4509769ac8be7/WhatsApp%20Image%202026-11-17%20at%201.11.59%20PM.jpeg
 
 *Desktop GUI with real-time token streaming*
 
