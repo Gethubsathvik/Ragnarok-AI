@@ -1,5 +1,5 @@
 # PyTorch is installed separately with CUDA support (see setup_env.sh / setup_env.bat)
-transformers>=4.40
+transformers>=5.23.0
 datasets>=2.19
 tokenizers>=0.19
 numpy
